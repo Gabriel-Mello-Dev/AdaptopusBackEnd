@@ -107,14 +107,19 @@ io.on("connection", (socket) => {
   /*
    * CHAT
    */
-  socket.on("message", ({ roomId, message }) => {
+  socket.on("message", ({ roomId, uid, nome, message, timeStamp }) => {
     roomId = roomId.toUpperCase();
 
     if (!rooms.has(roomId)) {
       return;
     }
 
-    io.to(roomId).emit("message", message);
+    io.to(roomId).emit("message", {
+      uid,
+      nome,
+      message,
+      timeStamp,
+    });
   });
 
   /*
