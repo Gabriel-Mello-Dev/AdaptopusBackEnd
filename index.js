@@ -42,7 +42,7 @@ const rooms = new Set();
  */
 const roomVotes = {};
 const roomQuestions = {};
-
+const roomUsers = {};
 /*
  * GERAR CÓDIGO DA SALA
  */
@@ -92,7 +92,7 @@ io.on("connection", (socket) => {
   /*
    * ENTRAR NA SALA
    */
-  socket.on("join-room", (roomId) => {
+  socket.on("join-room", ({ roomId, uid, nome }) => {
     roomId = roomId.toUpperCase();
 
     if (!rooms.has(roomId)) {
@@ -101,9 +101,20 @@ io.on("connection", (socket) => {
 
     socket.join(roomId);
 
-    console.log(`${socket.id} entrou em ${roomId}`);
-  });
+    if (!roomUsers[roomId]) {
+      roomUsers[roomId] = [];
+    }
 
+    roomUsers[roomId].push({
+      uid,
+      nome,
+      socketId: socket.id,
+    });
+
+    console.log(`${nome} entrou em ${roomId}`);
+
+    io.to(roomId).emit("users-online", roomUsers[roomId]);
+  });
   /*
    * CHAT
    */
@@ -292,6 +303,16 @@ io.on("connection", (socket) => {
    */
   socket.on("disconnect", () => {
     console.log("Desconectado:", socket.id);
+
+    for (const roomId of Object.keys(roomUsers)) {
+      if (!roomUsers[roomId]) continue;
+
+      roomUsers[roomId] = roomUsers[roomId].filter(
+        (user) => user.socketId !== socket.id,
+      );
+
+      io.to(roomId).emit("users-online", roomUsers[roomId]);
+    }
   });
 });
 
