@@ -43,6 +43,7 @@ const rooms = new Set();
 const roomVotes = {};
 const roomQuestions = {};
 const roomUsers = {};
+const roomVoters = {};
 /*
  * GERAR CÓDIGO DA SALA
  */
@@ -63,6 +64,7 @@ app.post("/create-room", (req, res) => {
   rooms.add(roomId);
 
   roomVotes[roomId] = [];
+  roomVoters[roomId] = new Set();
   delete roomQuestions[roomId];
 
   res.json({
@@ -105,11 +107,18 @@ io.on("connection", (socket) => {
       roomUsers[roomId] = [];
     }
 
-    roomUsers[roomId].push({
-      uid,
-      nome,
-      socketId: socket.id,
-    });
+    // Verifica se este socket já está registrado na sala
+    const alreadyJoined = roomUsers[roomId].some(
+      (user) => user.socketId === socket.id,
+    );
+
+    if (!alreadyJoined) {
+      roomUsers[roomId].push({
+        uid,
+        nome,
+        socketId: socket.id,
+      });
+    }
 
     console.log(`${nome} entrou em ${roomId}`);
 
@@ -148,6 +157,7 @@ io.on("connection", (socket) => {
      * Limpa a questão e os votos anteriores
      */
     roomVotes[roomId] = [];
+    roomVoters[roomId] = new Set();
     delete roomQuestions[roomId];
 
     /*
@@ -175,6 +185,7 @@ io.on("connection", (socket) => {
      * Começa uma nova votação
      */
     roomVotes[roomId] = [];
+    roomVoters[roomId] = new Set();
 
     /*
      * Envia para todos da sala
@@ -201,44 +212,43 @@ io.on("connection", (socket) => {
   /*
    * VOTO
    */
-  socket.on("vote", ({ roomId, answer }) => {
+  /*
+   * VOTO
+   */
+  socket.on("vote", ({ roomId, uid, answer }) => {
     roomId = roomId.toUpperCase();
 
-    if (!rooms.has(roomId)) {
-      return;
-    }
+    if (!rooms.has(roomId)) return;
+    if (!roomQuestions[roomId]) return;
+    if (!uid) return;
 
-    /*
-     * Não existe questão ativa
-     */
-    if (!roomQuestions[roomId]) {
-      return;
-    }
-
-    /*
-     * Garante que existe um array de votos
-     */
     if (!roomVotes[roomId]) {
       roomVotes[roomId] = [];
     }
 
-    /*
-     * Registra o voto
-     */
+    if (!roomVoters[roomId]) {
+      roomVoters[roomId] = new Set();
+    }
+
+    // Impede que o mesmo usuário vote mais de uma vez
+    if (roomVoters[roomId].has(uid)) {
+      console.log(`Voto duplicado rejeitado: ${uid}`);
+      return;
+    }
+
+    // Registra que o usuário já votou
+    roomVoters[roomId].add(uid);
+
+    // Registra o voto
     roomVotes[roomId].push(answer);
 
-    /*
-     * Conta os votos
-     */
+    // Conta os votos
     const contagem = {};
 
     roomVotes[roomId].forEach((voto) => {
       contagem[voto] = (contagem[voto] || 0) + 1;
     });
 
-    /*
-     * Atualiza todos os usuários
-     */
     io.to(roomId).emit("vote-update", contagem);
   });
 
