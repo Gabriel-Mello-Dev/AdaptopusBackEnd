@@ -123,6 +123,23 @@ io.on("connection", (socket) => {
     console.log(`${nome} entrou em ${roomId}`);
 
     io.to(roomId).emit("users-online", roomUsers[roomId]);
+
+    // Restaura a questão atual para quem acabou de entrar
+    if (roomQuestions[roomId]) {
+      console.log("Questão encontrada para restauração:", roomId);
+
+      socket.emit("question", roomQuestions[roomId]);
+
+      const contagem = {};
+
+      (roomVotes[roomId] || []).forEach((voto) => {
+        contagem[voto] = (contagem[voto] || 0) + 1;
+      });
+
+      socket.emit("vote-update", contagem);
+    } else {
+      console.log("Nenhuma questão salva para restauração:", roomId);
+    }
   });
   /*
    * CHAT
@@ -180,7 +197,8 @@ io.on("connection", (socket) => {
      * Salva a questão atual
      */
     roomQuestions[roomId] = question;
-
+    console.log("Questão salva na sala:", roomId);
+    console.log("Questão armazenada:", roomQuestions[roomId]);
     /*
      * Começa uma nova votação
      */
